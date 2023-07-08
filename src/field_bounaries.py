@@ -4,13 +4,26 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import warnings
 
+from copy import deepcopy
 from eodal.core.band import Band
 from matplotlib_scalebar.scalebar import ScaleBar
 from pathlib import Path
+from shapely.geometry import Polygon
 
 warnings.filterwarnings('ignore')
 
 DIST_BETWEEN_PARCELS = 10  # meters
+
+
+def buffer_geom(geom: Polygon) -> Polygon:
+    """
+    Buffer a geometry by DIST_BETWEEN_PARCELS meters.
+
+    :param geom: Geometry to buffer.
+    :return: Buffered geometry.
+    """
+    _geom = deepcopy(geom)
+    return _geom.buffer(DIST_BETWEEN_PARCELS)
 
 
 def identify_boundaries_with_gradient(
@@ -34,15 +47,15 @@ def identify_boundaries_with_gradient(
     # values
     field_boundaries['max_gradient'] = None
     field_boundaries['neigbor_geometry'] = None
-    # construct a buffer of DIST_BETWEEN_PARCELS meters around each field
-    # boundary to define the neighborhood
-    field_boundaries.geometry = field_boundaries.geometry.buffer(
-        DIST_BETWEEN_PARCELS
-    )
+
     for idx, row in field_boundaries.iterrows():
+        # construct a buffer of DIST_BETWEEN_PARCELS meters around the field
+        # boundary to define the neighborhood
+        buffered_reference_geom = buffer_geom(row.geometry)
+
         # get neighbors
         neighbors = field_boundaries[
-            field_boundaries.geometry.overlaps(row.geometry)].copy()
+            field_boundaries.geometry.overlaps(buffered_reference_geom)].copy()
         # if there are no neighbors, continue
         if neighbors.empty:
             continue
@@ -181,7 +194,8 @@ def extract_gradients_at_boundaries(
         f = plot_clipped_image(band=sat_lai_clipped, parcel=row, iteration=1)
 
         # get the actual intersection of the two geometries (reference and neighbor)
-        intersection = row.geometry.intersection(row.neigbor_geometry)
+        geom_buffered = buffer_geom(row.geometry)
+        intersection = geom_buffered.intersection(row.neigbor_geometry)
 
         # get the "long" side of the intersection since this is the side where
         # the gradient is actually to be considered
