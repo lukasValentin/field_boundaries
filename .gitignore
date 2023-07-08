@@ -243,3 +243,6 @@ eodal.code-workspace
 
 *.xml
 .vscode/launch.json
+
+GIS/
+
